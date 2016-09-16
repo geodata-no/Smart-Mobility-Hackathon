@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no" />
+    <title>Elevation Profile - Geodata Online</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/3.17/dijit/themes/claro/claro.css">
+    <link rel="stylesheet" href="https://js.arcgis.com/3.17/esri/css/esri.css">
+    <script>var dojoConfig = { parseOnLoad: true };</script>
+    <script src="https://js.arcgis.com/3.17/"></script>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        label {
+            font-family: arial;
+            color: white;
+            font-size: 14px;
+            display: block;
+            padding-bottom: 5px;
+        }
+
+        select {
+            display: block;
+        }
+
+        #info {
+            min-height: 80px;
+            min-width: 250px;
+            right: 5px;
+            top: 5px;
+            margin: 5px;
+            padding: 10px;
+            position: absolute;
+            width: 10%;
+            z-index: 40;
+            border: solid 2px #666;
+            border-radius: 4px;
+            background-color: #666;
+        }
+
+        #map {
+            padding: 0px;
+        }
+    </style>
+    <script>
+            require([
+                "esri/map",
+                "esri/basemaps",
+                "esri/geometry/Point",
+                "esri/toolbars/draw",
+                "esri/symbols/SimpleLineSymbol",
+                "esri/symbols/CartographicLineSymbol",
+                "esri/graphic",
+                "esri/units",
+                "esri/dijit/ElevationProfile",
+                "esri/Color",
+                "esri/request",
+                "dojo/dom",
+                "dojo/on",
+                "dojo/domReady!"
+            ], function(
+                Map,
+                Basemaps,
+                Point,
+                Draw,
+                SimpleLineSymbol,
+                CartographicLineSymbol,
+                Graphic,
+                Units,
+                ElevationsProfileWidget,
+                Color,
+                esriRequest,
+                dom,
+                on
+                ) {
+                var tb, epWidget, lineSymbol;
+
+                // Sett inn ditt token her:
+                var token = "DITT_EGET_TOKEN";
+
+                // Et lite hack for å få lagt på token i hvert kall fra ElevationProfile-widgeten (bug som ikke gjøre det standard)
+                esriRequest.setRequestPreCallback(function (ioArgs) {
+                    ioArgs.content = ioArgs.content || {};
+                    ioArgs.content.token = token;
+                    return ioArgs;
+                });
+
+                // Sett opp et norsk bakgrunnskart (brukes senere når Map-objektet lages)
+                Basemaps.landskap = {
+                    baseMapLayers: [{ url: "https://services.geodataonline.no/arcgis/rest/services/Geocache_UTM33_EUREF89/GeocacheLandskap/MapServer?token=" + token }
+                    ],
+                    title: "Landskap"
+                };
+
+                var map;
+                map = new Map("map", {
+                    basemap: "landskap",
+                    center: new Point({ "x": 146378, "y": 6849530, "spatialReference": { "wkid": 25833 } }),
+                    zoom: 7
+                });
+
+                map.on("load", init);
+
+                function init() {
+                    var eleList = ["Polyline", "FreehandPolyline"];
+                    for (var ele in eleList) {
+                        on(dom.byId(eleList[ele]), "click", function (evt) {
+                            initToolbar(evt.target.id.toLowerCase());
+                        });
+                    }
+
+                    on(dom.byId("unitsSelect"), "change", function (evt) {
+                        if (epWidget) {
+                            epWidget.set("measureUnits", evt.target.options[evt.target.selectedIndex].value);
+                        }
+                    })
+
+                    // lineSymbol used for freehand polyline and line.
+                    lineSymbol = new CartographicLineSymbol(
+                            CartographicLineSymbol.STYLE_SOLID,
+                            new Color([255, 0, 0]), 2,
+                            CartographicLineSymbol.CAP_ROUND,
+                            CartographicLineSymbol.JOIN_MITER, 2
+                    );
+
+                    var profileParams = {
+                        map: map,
+                        profileTaskUrl: "https://eksport.geodataonline.no/arcgis/rest/services/Geoanalyse/GeoanalyseTerrengProfil/GPServer",
+                        scalebarUnits: Units.KILOMETERS
+                    };
+                    epWidget = new ElevationsProfileWidget(profileParams, dom.byId("profileChartNode"));
+                    epWidget.startup();
+                }
+
+                function initToolbar(toolName) {
+                    epWidget.clearProfile(); //Clear profile
+
+                    map.graphics.clear();
+                    tb = new Draw(map);
+                    tb.on("draw-end", addGraphic);
+                    tb.activate(toolName);
+                    map.disableMapNavigation();
+                }
+
+                function addGraphic(evt) {
+                    //deactivate the toolbar and clear existing graphics
+                    tb.deactivate();
+                    map.enableMapNavigation();
+                    var symbol = lineSymbol;
+                    map.graphics.add(new Graphic(evt.geometry, symbol));
+                    epWidget.set("profileGeometry", evt.geometry);
+
+                    var sel = dom.byId("unitsSelect");
+                    if (sel) {
+                        var val = sel.options[sel.selectedIndex].value;
+                        epWidget.set("measureUnits", val);
+                    }
+                }
+            })
+    </script>
+</head>
+<body class="claro">
+    <div id="info">
+        <label>Tegn en rute/linje i kartet:</label>
+        <button id="Polyline" type="button">Knekkpunkter</button>
+        <button id="FreehandPolyline" type="button">Frihåndstegning</button>
+        <label>Velg måleenhet:</label>
+        <select id="unitsSelect">
+            <option value="esriKilometers">Kilometer</option>
+            <option value="esriMeters">Meter</option>
+            <option value="esriNauticalMiles">Nautiske mil</option>
+        </select>
+    </div>
+    <div id="mainContainer" data-dojo-type="dijit/layout/BorderContainer" data-dojo-props="design:'headline', gutters:true" style="width:100%;height:100%">
+        <div id="map" data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'center'" style="height:100%"></div>
+        <div data-dojo-type="dijit/layout/ContentPane" data-dojo-props="region:'bottom'" style="background-color: #666;">
+            <div id="profileChartNode"></div>
+        </div>
+    </div>
+</body>
+</html>

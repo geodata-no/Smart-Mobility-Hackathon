@@ -1,0 +1,93 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+    <title>Terrengdata fra Geodata Online</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/3.17/esri/css/esri.css">
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+
+    <script src="https://js.arcgis.com/3.17/"></script>
+    <script>
+        require([
+            "esri/map",
+            "esri/basemaps",
+            "esri/geometry/Point",
+            "esri/tasks/ImageServiceIdentifyTask",
+            "esri/tasks/ImageServiceIdentifyParameters",
+            "esri/layers/RasterFunction",
+            "dojo/_base/lang",
+            "dojo/domReady!"
+        ], function (Map, Basemaps, Point, ImageServiceIdentifyTask, ImageServiceIdentifyParameters, RasterFunction, lang) {
+
+            // Sett inn ditt token her:
+            var token = "DITT_EGET_TOKEN";
+
+            // Image Service (terrengdata)
+            var imageServiceUrl = "http://services2.geodataonline.no/arcgis/rest/services/Geomap_UTM33_EUREF89/GeomapDTM/ImageServer/?token=" + token;
+
+            // Sett opp et norsk bakgrunnskart (brukes senere n�r Map-objektet lages)
+            Basemaps.landskap = {
+                baseMapLayers: [{ url: "https://services.geodataonline.no/arcgis/rest/services/Geocache_UTM33_EUREF89/GeocacheLandskap/MapServer?token=" + token }]
+            };
+
+            var map;
+            map = new Map("map", {
+                basemap: "landskap",
+                center: new Point({ "x": 145851, "y": 6851967, "spatialReference": { "wkid": 25833 } }),
+                zoom: 8
+            });
+
+            // Vise terrenginfo ved klikk i kartet
+            map.on("click", function (evt) {
+
+                // Identify setup
+                var identifyTask = new ImageServiceIdentifyTask(imageServiceUrl);
+                identifyParams = new ImageServiceIdentifyParameters();
+                identifyParams.returnGeometry = false;
+                identifyParams.returnCatalogItems = false;
+                identifyParams.geometry = evt.mapPoint;
+                identifyParams.renderingRule = null;
+
+                var height, slope, aspect;
+                identifyTask.execute(identifyParams, lang.hitch(this, function (result) {
+                    height = result.value;;
+                    identifyParams.renderingRule = new RasterFunction({
+                        "rasterFunction": "Slope",
+                        "rasterFunctionArguments": { "ZFactor": 1 }
+                    });
+                    identifyTask.execute(identifyParams, lang.hitch(this, function (result) {
+                        slope = result.value;
+                        identifyParams.renderingRule = new RasterFunction({
+                            "rasterFunction": "Aspect"
+                        });
+                        identifyTask.execute(identifyParams, lang.hitch(this, function (result) {
+                            aspect = result.value;
+                            // Vise infovinduet
+                            map.infoWindow.setTitle("Terreng");
+                            map.infoWindow.setContent("Punktet ligger <b>" + height + " moh.</b>, har en helning på <b>" + slope +
+                                " grader</b>, og himmelretningen er <b>" + aspect + " grader</b>.");
+                            map.infoWindow.show(evt.screenPoint);
+                        }));
+                    }));
+                }));
+            });
+
+        });
+    </script>
+</head>
+
+<body>
+    <div id="search"></div>
+    <div id="map"></div>
+</body>
+</html>

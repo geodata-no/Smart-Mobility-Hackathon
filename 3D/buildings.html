@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>3D-bygninger - GeosceneBygninger fra Geodata Online</title>
+    <style>
+        html,
+        body,
+        #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.0/esri/css/main.css">
+    <script src="https://js.arcgis.com/4.0/"></script>
+    <script>
+        require([
+          "esri/Map",
+          "esri/Basemap",
+          "esri/layers/ElevationLayer",
+          "esri/layers/TileLayer",
+          "esri/Ground",
+          "esri/views/SceneView",
+          "esri/layers/GroupLayer",
+          "esri/layers/SceneLayer",
+          "esri/geometry/Point",
+          "dojo/dom",
+          "dojo/on",
+          "dojo/_base/array",
+          "dojo/domReady!"
+        ], function (Map, Basemap, ElevationLayer, TileLayer, Ground, SceneView, GroupLayer, SceneLayer, Point, dom, on, array) {
+
+            // Sett inn ditt token her:
+            var token = "DITT_EGET_TOKEN";
+
+            // SceneService og layerid (ett pr. fylke)
+            var buildingLayersUrl = "https://apps.geodataonline.no/arcgis/rest/services/geoscene/GeoSceneBygning/SceneServer/layers/";
+            var buildingLayerIds = [ 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 ];
+
+            // Bakgrunnskart
+            var basemap = new Basemap({
+                baseLayers: [
+                    new TileLayer({ url: "https://services.geodataonline.no/arcgis/rest/services/Geocache_UTM33_EUREF89/GeocacheBilder/MapServer?token=" + token })
+                ],
+                title: "Bilder", id: "bilder"
+            });
+
+            // Elevation layer (terreng)
+            var elevation = new ElevationLayer({
+                url: "http://services.geodataonline.no/arcgis/rest/services/Geocache_UTM33_EUREF89/GeocacheTerreng/ImageServer?token=" + token
+            });
+
+            // Lage kartet
+            var map = new Map({
+                basemap: basemap,
+                ground: new Ground({
+                    layers: [elevation]
+                })
+            });
+
+            // Create the SceneView
+            var view = new SceneView({
+                map: map,
+                container: "viewDiv",
+                viewingMode: "local"
+            });
+            view.then(function () {
+                view.goTo({
+                    center: new Point({ "x": 482517, "y": 7569175, "spatialReference": { "wkid": 25833 } }),
+                    zoom: 15,
+                    heading: 30,
+                    tilt: 85
+                })
+            });
+
+            // Create the group SceneLayer
+            var group3DLayer = new GroupLayer();
+            array.forEach(buildingLayerIds, function (layerId) {
+                group3DLayer.add(
+                    new SceneLayer({
+                        url: buildingLayersUrl + layerId,
+                        token: token,
+                        popupEnabled: false
+                    })
+                );
+            }, this);
+            map.add(group3DLayer);
+        });
+    </script>
+</head>
+<body>
+    <div id="viewDiv"></div>
+</body>
+</html>
